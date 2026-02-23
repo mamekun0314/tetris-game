@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>出口番号テトリス</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #050810;
+  --panel: #0a0f1e;
+  --border: #1a2a4a;
+  --cyan: #00f5ff;
+  --yellow: #ffe600;
+  --purple: #bf00ff;
+  --green: #00ff88;
+  --red: #ff2244;
+  --orange: #ff8800;
+  --blue: #0066ff;
+}
+body {
+  background: var(--bg);
+  color: #eef;
+  font-family: 'Share Tech Mono', monospace;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  overflow: hidden;
+}
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.12) 2px, rgba(0,0,0,0.12) 4px);
+  pointer-events: none;
+  z-index: 999;
+}
+.wrapper {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 20px;
+}
+.game-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.title {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900;
+  font-size: 1.1rem;
+  letter-spacing: 0.25em;
+  color: var(--cyan);
+  text-shadow: 0 0 10px var(--cyan), 0 0 30px var(--cyan);
+  text-align: center;
+}
+#game-canvas-wrapper { position: relative; }
+canvas#game-canvas {
+  display: block;
+  border: 2px solid var(--border);
+  box-shadow: 0 0 0 1px #0af4, inset 0 0 30px rgba(0,200,255,0.05), 0 0 40px rgba(0,200,255,0.12);
+  background: #060b18;
+}
+.side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 150px;
+  padding-top: 56px;
+}
+.panel-box {
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  background: var(--panel);
+  position: relative;
+}
+.panel-box::before {
+  content: attr(data-label);
+  position: absolute;
+  top: -8px;
+  left: 8px;
+  font-size: 0.55rem;
+  letter-spacing: 0.2em;
+  color: var(--cyan);
+  background: var(--panel);
+  padding: 0 4px;
+  text-transform: uppercase;
+}
+.panel-value {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--yellow);
+  text-shadow: 0 0 8px var(--yellow);
+}
+#next-canvas { display: block; background: transparent; }
+.controls {
+  font-size: 0.58rem;
+  line-height: 2;
+  color: #4a6a8a;
+  letter-spacing: 0.05em;
+}
+.controls span { color: #8ab; }
+
+/* Anomaly indicator */
+#anomaly-bar {
+  width: 300px;
+  height: 6px;
+  background: #111;
+  border: 1px solid #1a2a4a;
+  position: relative;
+  overflow: hidden;
+}
+#anomaly-fill {
+  height: 100%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  transition: width 0.3s;
+}
+
+/* Decision buttons */
+#decision-area {
+  display: flex;
+  gap: 12px;
+  width: 300px;
+}
+.dec-btn {
+  flex: 1;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 8px 4px;
+  background: transparent;
+  border: 2px solid;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.15s;
+}
+.dec-btn.exit {
+  border-color: var(--red);
+  color: var(--red);
+  box-shadow: 0 0 8px rgba(255,34,68,0.3);
+}
+.dec-btn.exit:hover {
+  background: var(--red);
+  color: var(--bg);
+  box-shadow: 0 0 20px var(--red);
+}
+.dec-btn.continue {
+  border-color: var(--green);
+  color: var(--green);
+  box-shadow: 0 0 8px rgba(0,255,136,0.3);
+}
+.dec-btn.continue:hover {
+  background: var(--green);
+  color: var(--bg);
+  box-shadow: 0 0 20px var(--green);
+}
+
+/* Anomaly hint text */
+#anomaly-hint {
+  font-size: 0.6rem;
+  color: #ff8800;
+  text-align: center;
+  min-height: 1.2em;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 8px #ff8800;
+  animation: blink 0.8s infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* Overlay */
+#overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5,8,16,0.92);
+  gap: 16px;
+  z-index: 10;
+}
+#overlay h2 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.3rem;
+  color: var(--cyan);
+  text-shadow: 0 0 15px var(--cyan);
+  letter-spacing: 0.2em;
+  text-align: center;
+}
+#overlay p {
+  font-size: 0.75rem;
+  color: #6a8aaa;
+  letter-spacing: 0.08em;
+  text-align: center;
+  max-width: 260px;
+  line-height: 1.7;
+}
+.btn {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  padding: 10px 24px;
+  background: transparent;
+  border: 2px solid var(--cyan);
+  color: var(--cyan);
+  cursor: pointer;
+  text-transform: uppercase;
+  box-shadow: 0 0 10px rgba(0,245,255,0.3);
+  transition: all 0.15s;
+}
+.btn:hover { background: var(--cyan); color: var(--bg); box-shadow: 0 0 20px var(--cyan); }
+
+/* Anomaly flash effect */
+@keyframes anomalyPulse {
+  0%,100% { box-shadow: 0 0 0 1px #0af4, 0 0 40px rgba(0,200,255,0.12); }
+  50% { box-shadow: 0 0 0 2px rgba(255,136,0,0.8), 0 0 40px rgba(255,136,0,0.3); }
+}
+.anomaly-active { animation: anomalyPulse 1.5s infinite; }
+
+/* Level stars */
+#level-stars {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+.star {
+  width: 12px;
+  height: 12px;
+  background: #1a2a4a;
+  border: 1px solid #2a3a5a;
+  border-radius: 50%;
+}
+.star.lit {
+  background: var(--yellow);
+  box-shadow: 0 0 6px var(--yellow);
+  border-color: var(--yellow);
+}
+
+/* Overlay result colors */
+.result-good { color: var(--green) !important; text-shadow: 0 0 15px var(--green) !important; }
+.result-bad  { color: var(--red)   !important; text-shadow: 0 0 15px var(--red)   !important; }
+.result-clear { color: var(--yellow) !important; text-shadow: 0 0 20px var(--yellow) !important; font-size: 1.6rem !important; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="game-area">
+    <div class="title">EXIT No. TETRIS</div>
+    <div id="game-canvas-wrapper">
+      <canvas id="game-canvas" width="300" height="520"></canvas>
+      <div id="overlay">
+        <h2 id="overlay-title">EXIT No. TETRIS</h2>
+        <p id="overlay-msg">テトリスをしながら「異変」を探せ。<br>異変を感じたら EXIT を押せ。<br>異変がなければ 50ライン 消せ。<br><br>レベル 8 を突破したら脱出成功。</p>
+        <button class="btn" id="start-btn">START</button>
+      </div>
+    </div>
+    <!-- progress bar -->
+    <div id="anomaly-bar"><div id="anomaly-fill" style="width:0%"></div></div>
+    <!-- anomaly hint -->
+    <div id="anomaly-hint"></div>
+    <!-- decision buttons -->
+    <div id="decision-area">
+      <button class="dec-btn exit" id="exit-btn">⚠ EXIT</button>
+      <button class="dec-btn continue" id="continue-btn">✓ CONTINUE (50lines)</button>
+    </div>
+  </div>
+
+  <div class="side-panel">
+    <div class="panel-box" data-label="LEVEL">
+      <div class="panel-value" id="level-val">1</div>
+      <div id="level-stars"></div>
+    </div>
+    <div class="panel-box" data-label="LINES">
+      <div class="panel-value" id="lines-val">0</div>
+    </div>
+    <div class="panel-box" data-label="NEXT">
+      <canvas id="next-canvas" width="126" height="80"></canvas>
+    </div>
+    <div class="panel-box" data-label="ANOMALY">
+      <div id="anomaly-count" class="panel-value" style="font-size:0.75rem; color: var(--orange); text-shadow: 0 0 8px var(--orange);">???</div>
+    </div>
+    <div class="panel-box" data-label="KEYS">
+      <div class="controls">
+        <span>← →</span> 移動<br>
+        <span>↑</span> 回転<br>
+        <span>↓</span> ソフト<br>
+        <span>SPC</span> ハード<br>
+        <span>E</span> EXIT<br>
+        <span>C</span> CONTINUE
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========================
+// CONSTANTS
+// ========================
+const COLS = 10, ROWS = 17, BLOCK = 30;
+const MAX_LEVEL = 8;
+const TARGET_LINES = 50;
+
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const nextCanvas = document.getElementById('next-canvas');
+const nCtx = nextCanvas.getContext('2d');
+
+// ========================
+// PIECE DEFINITIONS
+// ========================
+const PIECE_TYPES = ['I','O','T','S','Z','J','L'];
+const PIECE_COLORS = {
+  I:'#00f5ff', O:'#ffe600', T:'#bf00ff',
+  S:'#00ff88', Z:'#ff2244', J:'#0066ff', L:'#ff8800'
+};
+const PIECE_SHAPES = {
+  I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+  O:[[1,1],[1,1]],
+  T:[[0,1,0],[1,1,1],[0,0,0]],
+  S:[[0,1,1],[1,1,0],[0,0,0]],
+  Z:[[1,1,0],[0,1,1],[0,0,0]],
+  J:[[1,0,0],[1,1,1],[0,0,0]],
+  L:[[0,0,1],[1,1,1],[0,0,0]]
+};
+
+// ========================
+// ANOMALY DEFINITIONS (50種類)
+// ========================
+// Each anomaly: { id, name, description, apply(state), revert(state) }
+// state = { board, colors, nextPiece, ... }
+// "apply" modifies the visual state; "revert" restores it
+// We track which anomaly is active via currentAnomaly
+
+const ANOMALY_DEFS = [
+  // --- Board / block color anomalies ---
+  {
+    id: 1, name: '色が変わる',
+    desc: 'フィールド上のブロックが全て同じ色になる',
+    apply: s => {
+      s.board.forEach(row => row.forEach((c,i,a) => { if(c) a[i] = '#aaaaaa'; }));
+    }
+  },
+  {
+    id: 2, name: '逆さま',
+    desc: 'フィールドが上下反転する',
+    apply: s => { s.board.reverse(); }
+  },
+  {
+    id: 3, name: '横一行ランダム埋め',
+    desc: 'ランダムな行が突然ブロックで埋まる',
+    apply: s => {
+      const r = Math.floor(Math.random() * (ROWS - 5));
+      s.board[r] = s.board[r].map(c => c || '#444466');
+    }
+  },
+  {
+    id: 4, name: '列が消える',
+    desc: 'フィールドの一列が消える',
+    apply: s => {
+      const c = Math.floor(Math.random() * COLS);
+      s.board.forEach(row => row[c] = 0);
+    }
+  },
+  {
+    id: 5, name: 'チェッカー盤',
+    desc: 'フィールドがチェッカー模様になる',
+    apply: s => {
+      for(let r=0; r<ROWS; r++)
+        for(let c=0; c<COLS; c++)
+          if((r+c)%2===0 && !s.board[r][c]) s.board[r][c] = '#1a2a4a';
+    }
+  },
+  // --- Next piece anomalies ---
+  {
+    id: 6, name: 'NEXTが変わる',
+    desc: 'NEXTピースが突然別のものに変わる',
+    apply: s => {
+      const types = PIECE_TYPES.filter(t => t !== s.nextPiece.type);
+      const t = types[Math.floor(Math.random()*types.length)];
+      s.nextPiece.type = t;
+      s.nextPiece.color = PIECE_COLORS[t];
+      s.nextPiece.matrix = PIECE_SHAPES[t].map(r=>[...r]);
+    }
+  },
+  {
+    id: 7, name: 'NEXTが消える',
+    desc: 'NEXTの表示が消える',
+    apply: s => { s.hideNext = true; }
+  },
+  {
+    id: 8, name: 'NEXT=I固定',
+    desc: 'NEXTが常にIミノになる',
+    apply: s => {
+      s.nextPiece.type = 'I';
+      s.nextPiece.color = PIECE_COLORS['I'];
+      s.nextPiece.matrix = PIECE_SHAPES['I'].map(r=>[...r]);
+    }
+  },
+  // --- Field structure anomalies ---
+  {
+    id: 9, name: 'フィールド縮小',
+    desc: '右端の列がグレーになり見えにくくなる',
+    apply: s => { s.narrowField = true; }
+  },
+  {
+    id: 10, name: '天井が下がる',
+    desc: '上から3行が埋まってしまう',
+    apply: s => {
+      for(let r=0; r<3; r++)
+        for(let c=0; c<COLS; c++)
+          s.board[r][c] = '#222244';
+    }
+  },
+  {
+    id: 11, name: '中央の列が埋まる',
+    desc: 'フィールド中央の列がブロックで埋まる',
+    apply: s => {
+      const c = 4;
+      s.board.forEach(row => row[c] = '#334455');
+    }
+  },
+  {
+    id: 12, name: 'X型',
+    desc: 'フィールド中央にX型のブロックが現れる',
+    apply: s => {
+      const cx = 4, cy = 8;
+      for(let d=-2; d<=2; d++) {
+        if(cy+d>=0&&cy+d<ROWS&&cx+d>=0&&cx+d<COLS) s.board[cy+d][cx+d] = '#334455';
+        if(cy+d>=0&&cy+d<ROWS&&cx-d>=0&&cx-d<COLS) s.board[cy+d][cx-d] = '#334455';
+      }
+    }
+  },
+  // --- UI / HUD anomalies ---
+  {
+    id: 13, name: 'ライン数が0に',
+    desc: 'ライン数表示がリセットされたように見える',
+    apply: s => { s.fakeLines = 0; }
+  },
+  {
+    id: 14, name: 'ライン数が増える',
+    desc: 'ライン数が50以上に跳ね上がる',
+    apply: s => { s.fakeLines = 50; }
+  },
+  {
+    id: 15, name: 'レベル表示変化',
+    desc: 'レベル表示が急に変わる',
+    apply: s => { s.fakeLevel = s.level + 2; }
+  },
+  {
+    id: 16, name: '進捗バーが満タン',
+    desc: 'プログレスバーが100%になる',
+    apply: s => { s.fakeProgress = 100; }
+  },
+  {
+    id: 17, name: '進捗バーが空に',
+    desc: 'プログレスバーが0%になる',
+    apply: s => { s.fakeProgress = 0; }
+  },
+  // --- Piece behavior anomalies ---
+  {
+    id: 18, name: 'ミノが2倍速',
+    desc: '落下速度が突然2倍になる',
+    apply: s => { s.speedMult = 0.3; }
+  },
+  {
+    id: 19, name: 'ミノが止まる',
+    desc: '落下速度が極端に遅くなる',
+    apply: s => { s.speedMult = 5; }
+  },
+  {
+    id: 20, name: 'ゴーストが消える',
+    desc: 'ゴースト（影）が表示されなくなる',
+    apply: s => { s.hideGhost = true; }
+  },
+  {
+    id: 21, name: '操作が逆転',
+    desc: '左右キーが逆になる',
+    apply: s => { s.reverseControl = true; }
+  },
+  {
+    id: 22, name: '回転方向が変わる',
+    desc: '回転方向が逆になる',
+    apply: s => { s.reverseRotate = true; }
+  },
+  // --- Visual anomalies ---
+  {
+    id: 23, name: '画面が暗くなる',
+    desc: 'フィールドが暗くなる',
+    apply: s => { s.darkMode = true; }
+  },
+  {
+    id: 24, name: '全ブロックが同色',
+    desc: '全てのブロックが白一色になる',
+    apply: s => {
+      s.board.forEach(row => row.forEach((c,i,a) => { if(c) a[i] = '#ffffff'; }));
+      s.monoColor = '#ffffff';
+    }
+  },
+  {
+    id: 25, name: 'グリッドが消える',
+    desc: 'グリッド線が表示されなくなる',
+    apply: s => { s.hideGrid = true; }
+  },
+  {
+    id: 26, name: 'フィールドが揺れる',
+    desc: '画面がわずかに揺れる',
+    apply: s => { s.shake = true; }
+  },
+  {
+    id: 27, name: 'ブロックが透明に',
+    desc: '積まれたブロックが薄く見える',
+    apply: s => { s.ghostBoard = true; }
+  },
+  {
+    id: 28, name: 'ミノの色が変わる',
+    desc: '落ちているミノの色が別の色になる',
+    apply: s => {
+      const cols = Object.values(PIECE_COLORS).filter(c=>c!==s.currentPiece.color);
+      s.pieceColorOverride = cols[Math.floor(Math.random()*cols.length)];
+    }
+  },
+  // --- Board layout anomalies ---
+  {
+    id: 29, name: '市松模様埋め',
+    desc: '1行おきに左半分がブロックで埋まる',
+    apply: s => {
+      for(let r=2; r<ROWS; r+=2)
+        for(let c=0; c<5; c++)
+          if(!s.board[r][c]) s.board[r][c] = '#1a3a5a';
+    }
+  },
+  {
+    id: 30, name: '底に1行追加',
+    desc: '最下行にほぼ埋まった行が現れる',
+    apply: s => {
+      const row = Array(COLS).fill('#2a3a5a');
+      row[Math.floor(Math.random()*COLS)] = 0;
+      s.board[ROWS-1] = row;
+    }
+  },
+  {
+    id: 31, name: '塔が出現',
+    desc: 'フィールド左端に高い塔が出現する',
+    apply: s => {
+      for(let r=ROWS-8; r<ROWS; r++)
+        s.board[r][0] = '#3a4a6a';
+    }
+  },
+  {
+    id: 32, name: 'ランダムブロック追加',
+    desc: 'ランダムな位置に3つブロックが出現する',
+    apply: s => {
+      for(let i=0; i<3; i++) {
+        const r = Math.floor(Math.random()*(ROWS-3))+2;
+        const c = Math.floor(Math.random()*COLS);
+        if(!s.board[r][c]) s.board[r][c] = '#3a2a5a';
+      }
+    }
+  },
+  {
+    id: 33, name: 'ハート型',
+    desc: 'フィールド中央にハート形のブロックが出現',
+    apply: s => {
+      const pat = [[0,1,0,1,0],[1,1,1,1,1],[1,1,1,1,1],[0,1,1,1,0],[0,0,1,0,0]];
+      for(let r=0;r<pat.length;r++)
+        for(let c=0;c<pat[r].length;c++)
+          if(pat[r][c]) s.board[5+r][2+c] = '#ff2244';
+    }
+  },
+  {
+    id: 34, name: '階段状',
+    desc: '階段状のブロックが現れる',
+    apply: s => {
+      for(let i=0;i<6;i++)
+        s.board[ROWS-1-i][i] = '#4a5a3a';
+    }
+  },
+  {
+    id: 35, name: '列の色が変わる',
+    desc: '特定の列のブロックが全て赤くなる',
+    apply: s => {
+      const c = Math.floor(Math.random()*COLS);
+      s.board.forEach(row => { if(row[c]) row[c] = '#ff2244'; });
+    }
+  },
+  // --- Text / number anomalies ---
+  {
+    id: 36, name: 'EXITボタンが消える',
+    desc: 'EXITボタンが一時的に消える',
+    apply: s => { s.hideExit = true; }
+  },
+  {
+    id: 37, name: 'CONTINUEが消える',
+    desc: 'CONTINUEボタンが一時的に消える',
+    apply: s => { s.hideContinue = true; }
+  },
+  {
+    id: 38, name: 'レベルが0に',
+    desc: 'レベル表示が0になる',
+    apply: s => { s.fakeLevel = 0; }
+  },
+  {
+    id: 39, name: 'タイトルが変わる',
+    desc: 'ゲームタイトルが変わる',
+    apply: s => { s.fakeTitle = '8番出口'; }
+  },
+  {
+    id: 40, name: 'ANOMALY欄に数字が出る',
+    desc: 'ANOMALY欄に数値が出る',
+    apply: s => { s.showAnomalyCount = Math.floor(Math.random()*5)+1; }
+  },
+  // --- Piece shape anomalies ---
+  {
+    id: 41, name: 'Oミノ固定',
+    desc: 'NEXTが常にOミノになる',
+    apply: s => {
+      s.nextPiece.type = 'O';
+      s.nextPiece.color = PIECE_COLORS['O'];
+      s.nextPiece.matrix = PIECE_SHAPES['O'].map(r=>[...r]);
+    }
+  },
+  {
+    id: 42, name: 'Sミノ固定',
+    desc: 'NEXTが常にSミノになる',
+    apply: s => {
+      s.nextPiece.type = 'S';
+      s.nextPiece.color = PIECE_COLORS['S'];
+      s.nextPiece.matrix = PIECE_SHAPES['S'].map(r=>[...r]);
+    }
+  },
+  {
+    id: 43, name: 'Zミノ固定',
+    desc: 'NEXTが常にZミノになる',
+    apply: s => {
+      s.nextPiece.type = 'Z';
+      s.nextPiece.color = PIECE_COLORS['Z'];
+      s.nextPiece.matrix = PIECE_SHAPES['Z'].map(r=>[...r]);
+    }
+  },
+  {
+    id: 44, name: 'ミノの落下位置変化',
+    desc: '現在のミノが横にずれる',
+    apply: s => {
+      const dx = (Math.random() > 0.5 ? 1 : -1) * (Math.floor(Math.random()*3)+1);
+      const np = s.currentPiece.x + dx;
+      if(np >= 0 && np + s.currentPiece.matrix[0].length <= COLS)
+        s.currentPiece.x = np;
+    }
+  },
+  {
+    id: 45, name: '落下中のミノが回転',
+    desc: '突然ミノが1回転する',
+    apply: s => {
+      const rot = rotateMat(s.currentPiece.matrix);
+      if(isValidPos(s.currentPiece, 0, 0, rot, s.board))
+        s.currentPiece.matrix = rot;
+    }
+  },
+  // --- Combined / subtle ---
+  {
+    id: 46, name: '全ブロック消える',
+    desc: 'フィールドの全ブロックが消える',
+    apply: s => {
+      s.board = s.board.map(row => Array(COLS).fill(0));
+    }
+  },
+  {
+    id: 47, name: 'フィールドがずれる',
+    desc: 'フィールドのブロックが1行ずれる',
+    apply: s => {
+      s.board.unshift(s.board.pop());
+    }
+  },
+  {
+    id: 48, name: '2行同時消え',
+    desc: 'ランダムな2行が消える',
+    apply: s => {
+      const r1 = Math.floor(Math.random()*(ROWS-2))+1;
+      const r2 = (r1+3) % ROWS;
+      s.board[r1] = Array(COLS).fill(0);
+      s.board[r2] = Array(COLS).fill(0);
+    }
+  },
+  {
+    id: 49, name: 'ミラー反転',
+    desc: 'フィールドが左右ミラー反転する',
+    apply: s => {
+      s.board.forEach(row => row.reverse());
+    }
+  },
+  {
+    id: 50, name: '外枠が変わる',
+    desc: 'フィールドの外枠の色が変わる',
+    apply: s => { s.borderColor = '#ff8800'; }
+  },
+];
+
+// ========================
+// GAME STATE
+// ========================
+const state = {
+  board: null,
+  currentPiece: null,
+  nextPiece: null,
+  linesCleared: 0,
+  level: 1,
+  gameOver: false,
+  paused: false,
+  roundActive: false,
+  // anomaly state
+  currentAnomaly: null,
+  anomalyActive: false,
+  // visual overrides
+  hideNext: false,
+  hideGhost: false,
+  hideGrid: false,
+  narrowField: false,
+  shake: false,
+  darkMode: false,
+  ghostBoard: false,
+  monoColor: null,
+  pieceColorOverride: null,
+  borderColor: null,
+  speedMult: 1,
+  reverseControl: false,
+  reverseRotate: false,
+  hideExit: false,
+  hideContinue: false,
+  fakeLines: null,
+  fakeLevel: null,
+  fakeProgress: null,
+  fakeTitle: null,
+  showAnomalyCount: null,
+};
+
+let dropTimer = null;
+
+// ========================
+// HELPERS
+// ========================
+function rotateMat(matrix) {
+  return matrix[0].map((_,i) => matrix.map(r => r[i]).reverse());
+}
+function isValidPos(piece, dx, dy, mat, board) {
+  mat = mat || piece.matrix;
+  for(let r=0; r<mat.length; r++)
+    for(let c=0; c<mat[r].length; c++) {
+      if(!mat[r][c]) continue;
+      const nx = piece.x+c+dx, ny = piece.y+r+dy;
+      if(nx<0||nx>=COLS||ny>=ROWS) return false;
+      if(ny>=0 && board[ny][nx]) return false;
+    }
+  return true;
+}
+function makePiece() {
+  const t = PIECE_TYPES[Math.floor(Math.random()*PIECE_TYPES.length)];
+  return {
+    type:t, color:PIECE_COLORS[t],
+    matrix: PIECE_SHAPES[t].map(r=>[...r]),
+    x: Math.floor((COLS - PIECE_SHAPES[t][0].length)/2),
+    y: 0
+  };
+}
+function createBoard() {
+  return Array.from({length:ROWS}, () => Array(COLS).fill(0));
+}
+
+// ========================
+// DROP SPEED
+// ========================
+function getDropInterval() {
+  // Level 1: 900ms, Level 8: 200ms, modified by speedMult
+  const base = Math.max(200, 900 - (state.level-1)*100);
+  return base * state.speedMult;
+}
+
+// ========================
+// ANOMALY MANAGEMENT
+// ========================
+function resetVisualOverrides() {
+  state.hideNext = false;
+  state.hideGhost = false;
+  state.hideGrid = false;
+  state.narrowField = false;
+  state.shake = false;
+  state.darkMode = false;
+  state.ghostBoard = false;
+  state.monoColor = null;
+  state.pieceColorOverride = null;
+  state.borderColor = null;
+  state.speedMult = 1;
+  state.reverseControl = false;
+  state.reverseRotate = false;
+  state.hideExit = false;
+  state.hideContinue = false;
+  state.fakeLines = null;
+  state.fakeLevel = null;
+  state.fakeProgress = null;
+  state.fakeTitle = null;
+  state.showAnomalyCount = null;
+}
+
+function activateAnomaly() {
+  resetVisualOverrides();
+  const def = ANOMALY_DEFS[Math.floor(Math.random()*ANOMALY_DEFS.length)];
+  state.currentAnomaly = def;
+  state.anomalyActive = true;
+  def.apply(state);
+  canvas.classList.add('anomaly-active');
+  document.getElementById('anomaly-hint').textContent = '⚠ 異変を感知！';
+  document.getElementById('anomaly-count').textContent = state.showAnomalyCount !== null ? state.showAnomalyCount : '???';
+  restartDropTimer();
+}
+
+function deactivateAnomaly() {
+  state.currentAnomaly = null;
+  state.anomalyActive = false;
+  resetVisualOverrides();
+  canvas.classList.remove('anomaly-active');
+  document.getElementById('anomaly-hint').textContent = '';
+  document.getElementById('anomaly-count').textContent = '???';
+  restartDropTimer();
+}
+
+// ========================
+// ROUND MANAGEMENT
+// ========================
+function startRound() {
+  state.board = createBoard();
+  state.linesCleared = 0;
+  state.roundActive = true;
+  state.gameOver = false;
+  state.currentPiece = makePiece();
+  state.nextPiece = makePiece();
+  deactivateAnomaly();
+
+  // Decide: does this round have an anomaly?
+  // Anomaly appears randomly between line 5 and 30
+  state.anomalyLine = Math.floor(Math.random()*25)+5;
+  state.hasAnomaly = Math.random() < 0.5; // 50% chance
+
+  updateUI();
+  document.getElementById('overlay').style.display = 'none';
+  updateDecisionButtons();
+  restartDropTimer();
+  render();
+}
+
+function restartDropTimer() {
+  clearInterval(dropTimer);
+  if(state.roundActive && !state.paused && !state.gameOver) {
+    dropTimer = setInterval(drop, getDropInterval());
+  }
+}
+
+// ========================
+// GAME LOGIC
+// ========================
+function drop() {
+  if(!state.roundActive) return;
+  const p = state.currentPiece;
+  if(isValidPos(p,0,1,null,state.board)) {
+    p.y++;
+  } else {
+    placePiece();
+  }
+  render();
+}
+
+function placePiece() {
+  const p = state.currentPiece;
+  p.matrix.forEach((row,r) => row.forEach((v,c) => {
+    if(v && p.y+r >= 0) state.board[p.y+r][p.x+c] = p.color;
+  }));
+  const cleared = clearLines();
+  state.linesCleared += cleared;
+
+  // Trigger anomaly at the right line count
+  if(state.hasAnomaly && !state.anomalyActive && state.linesCleared >= state.anomalyLine) {
+    activateAnomaly();
+  }
+
+  state.currentPiece = state.nextPiece;
+  state.nextPiece = makePiece();
+  if(!isValidPos(state.currentPiece,0,0,null,state.board)) {
+    // Piece can't spawn → game over (player lost, not a decision mistake)
+    showResult(false, 'フィールドが埋まった！');
+    return;
+  }
+  updateUI();
+  restartDropTimer();
+}
+
+function clearLines() {
+  let count = 0;
+  for(let r=ROWS-1; r>=0; r--) {
+    if(state.board[r].every(c=>c)) {
+      state.board.splice(r,1);
+      state.board.unshift(Array(COLS).fill(0));
+      count++;
+      r++;
+    }
+  }
+  return count;
+}
+
+function hardDrop() {
+  const p = state.currentPiece;
+  while(isValidPos(p,0,1,null,state.board)) p.y++;
+  placePiece();
+}
+
+// ========================
+// PLAYER DECISION
+// ========================
+function playerExit() {
+  if(!state.roundActive) return;
+  clearInterval(dropTimer);
+  state.roundActive = false;
+  if(state.anomalyActive) {
+    // Correct! There was an anomaly
+    levelUp();
+  } else {
+    // Wrong! No anomaly
+    showResult(false, '異変はなかった…\nEXITを選んでしまった。');
+  }
+}
+
+function playerContinue() {
+  if(!state.roundActive) return;
+  // Continue = keep playing until 50 lines
+  // Already at 50?
+  checkContinueComplete();
+}
+
+function checkContinueComplete() {
+  if(state.linesCleared >= TARGET_LINES) {
+    clearInterval(dropTimer);
+    state.roundActive = false;
+    if(!state.anomalyActive && !state.hasAnomaly) {
+      // No anomaly → correct to continue
+      levelUp();
+    } else {
+      // There was an anomaly → should have exited
+      showResult(false, '異変があったのに\nCONTINUEを選んでしまった。');
+    }
+  }
+  // else keep playing
+}
+
+// AUTO-check on each line clear
+const _origDrop = drop;
+
+function levelUp() {
+  state.level++;
+  if(state.level > MAX_LEVEL) {
+    // CLEAR!
+    showClear();
+  } else {
+    showResult(true, `レベル ${state.level-1} → ${state.level} に上昇！`);
+  }
+}
+
+// ========================
+// UI UPDATE
+// ========================
+function updateUI() {
+  const lines = state.fakeLines !== null ? state.fakeLines : state.linesCleared;
+  const level = state.fakeLevel !== null ? state.fakeLevel : state.level;
+  const progress = state.fakeProgress !== null ? state.fakeProgress : Math.min(100, (state.linesCleared/TARGET_LINES)*100);
+
+  document.getElementById('lines-val').textContent = lines;
+  document.getElementById('level-val').textContent = level;
+  document.getElementById('anomaly-fill').style.width = progress + '%';
+
+  // Change bar color near completion
+  const fill = document.getElementById('anomaly-fill');
+  if(progress > 80) fill.style.background = '#ff8800';
+  else fill.style.background = '#00ff88';
+
+  // Stars
+  const starsEl = document.getElementById('level-stars');
+  starsEl.innerHTML = '';
+  for(let i=1; i<=MAX_LEVEL; i++) {
+    const s = document.createElement('div');
+    s.className = 'star' + (i < state.level ? ' lit' : '');
+    starsEl.appendChild(s);
+  }
+
+  // Fake title
+  const title = document.querySelector('.title');
+  title.textContent = state.fakeTitle || 'EXIT No. TETRIS';
+
+  updateDecisionButtons();
+}
+
+function updateDecisionButtons() {
+  document.getElementById('exit-btn').style.opacity = state.hideExit ? '0' : '1';
+  document.getElementById('continue-btn').style.opacity = state.hideContinue ? '0' : '1';
+}
+
+// ========================
+// OVERLAY
+// ========================
+function showResult(success, msg) {
+  state.roundActive = false;
+  clearInterval(dropTimer);
+  const ol = document.getElementById('overlay');
+  const t = document.getElementById('overlay-title');
+  const m = document.getElementById('overlay-msg');
+  const btn = document.getElementById('start-btn');
+  t.className = '';
+  if(success) {
+    t.textContent = '✓ CORRECT';
+    t.classList.add('result-good');
+    m.textContent = msg;
+    btn.textContent = '次のラウンド';
+  } else {
+    t.textContent = '✗ WRONG';
+    t.classList.add('result-bad');
+    const anomalyName = state.currentAnomaly ? `「${state.currentAnomaly.name}」があった` : '異変はなかった';
+    m.textContent = msg + `\n\n（${anomalyName}）`;
+    btn.textContent = 'リスタート (Lv.1)';
+    state.level = 1;
+  }
+  ol.style.display = 'flex';
+  deactivateAnomaly();
+}
+
+function showClear() {
+  state.roundActive = false;
+  clearInterval(dropTimer);
+  const ol = document.getElementById('overlay');
+  const t = document.getElementById('overlay-title');
+  const m = document.getElementById('overlay-msg');
+  const btn = document.getElementById('start-btn');
+  t.className = '';
+  t.textContent = '🎉 CLEAR!';
+  t.classList.add('result-clear');
+  m.textContent = 'レベル 8 を突破した！\n脱出成功！おめでとう！';
+  btn.textContent = 'もう一度';
+  state.level = 1;
+  ol.style.display = 'flex';
+}
+
+// ========================
+// RENDERING
+// ========================
+function lighten(hex, amt) {
+  if(!hex || hex[0]!=='#') return hex;
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  const lrp=(v,a)=>Math.min(255,Math.floor(v+(255-v)*a));
+  return `rgb(${lrp(r,amt)},${lrp(g,amt)},${lrp(b,amt)})`;
+}
+function drawBlock(c, x, y, size, color, alpha=1) {
+  const bx=x*size, by=y*size;
+  c.save();
+  c.globalAlpha = alpha;
+  c.fillStyle = 'rgba(0,0,0,0.4)';
+  c.fillRect(bx+1, by+1, size-2, size-2);
+  const grad = c.createLinearGradient(bx,by,bx+size,by+size);
+  grad.addColorStop(0, lighten(color, 0.3));
+  grad.addColorStop(1, color);
+  c.fillStyle = grad;
+  c.fillRect(bx+1, by+1, size-2, size-2);
+  c.strokeStyle = lighten(color, 0.5);
+  c.lineWidth = 1;
+  c.strokeRect(bx+2, by+2, size-4, size-4);
+  c.restore();
+}
+
+function getGhostY(piece) {
+  let dy = 0;
+  while(isValidPos(piece,0,dy+1,null,state.board)) dy++;
+  return piece.y + dy;
+}
+
+function render() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // Dark mode
+  if(state.darkMode) {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+  }
+
+  // Grid
+  if(!state.hideGrid) {
+    ctx.strokeStyle = 'rgba(20,40,80,0.5)';
+    ctx.lineWidth = 0.5;
+    for(let r=0;r<ROWS;r++)
+      for(let c=0;c<COLS;c++)
+        ctx.strokeRect(c*BLOCK, r*BLOCK, BLOCK, BLOCK);
+  }
+
+  // Narrow field overlay
+  if(state.narrowField) {
+    ctx.fillStyle = 'rgba(30,30,50,0.7)';
+    ctx.fillRect(8*BLOCK, 0, 2*BLOCK, ROWS*BLOCK);
+  }
+
+  // Board
+  state.board.forEach((row,r) => {
+    row.forEach((color,c) => {
+      if(color) {
+        const alpha = state.ghostBoard ? 0.25 : 1;
+        const col = state.monoColor || color;
+        ctx.shadowColor = col;
+        ctx.shadowBlur = state.ghostBoard ? 0 : 6;
+        drawBlock(ctx, c, r, BLOCK, col, alpha);
+        ctx.shadowBlur = 0;
+      }
+    });
+  });
+
+  // Ghost
+  if(!state.hideGhost && state.currentPiece) {
+    const gy = getGhostY(state.currentPiece);
+    state.currentPiece.matrix.forEach((row,r) => {
+      row.forEach((v,c) => {
+        if(v && gy+r >= 0) drawBlock(ctx, state.currentPiece.x+c, gy+r, BLOCK, state.currentPiece.color, 0.15);
+      });
+    });
+  }
+
+  // Current piece
+  if(state.currentPiece) {
+    const color = state.pieceColorOverride || state.currentPiece.color;
+    state.currentPiece.matrix.forEach((row,r) => {
+      row.forEach((v,c) => {
+        if(v && state.currentPiece.y+r >= 0) {
+          ctx.shadowColor = color;
+          ctx.shadowBlur = 14;
+          drawBlock(ctx, state.currentPiece.x+c, state.currentPiece.y+r, BLOCK, color);
+          ctx.shadowBlur = 0;
+        }
+      });
+    });
+  }
+
+  // Next piece
+  nCtx.clearRect(0,0,nextCanvas.width,nextCanvas.height);
+  if(!state.hideNext && state.nextPiece) {
+    const bs=22;
+    const np = state.nextPiece;
+    const ox = Math.floor((nextCanvas.width - np.matrix[0].length*bs)/2/bs);
+    const oy = Math.floor((nextCanvas.height - np.matrix.length*bs)/2/bs);
+    np.matrix.forEach((row,r) => {
+      row.forEach((v,c) => {
+        if(v) {
+          nCtx.shadowColor = np.color;
+          nCtx.shadowBlur = 8;
+          drawBlock(nCtx, ox+c, oy+r, bs, np.color);
+          nCtx.shadowBlur = 0;
+        }
+      });
+    });
+  }
+
+  // Shake effect
+  if(state.shake) {
+    const dx = (Math.random()-0.5)*3;
+    const dy = (Math.random()-0.5)*3;
+    canvas.style.transform = `translate(${dx}px,${dy}px)`;
+  } else {
+    canvas.style.transform = '';
+  }
+
+  updateUI();
+}
+
+// ========================
+// INPUT
+// ========================
+document.addEventListener('keydown', e => {
+  switch(e.key) {
+    case 'ArrowLeft':  e.preventDefault(); handleMoveLeft();  break;
+    case 'ArrowRight': e.preventDefault(); handleMoveRight(); break;
+    case 'ArrowDown':  e.preventDefault(); handleSoftDrop();  break;
+    case 'ArrowUp':    e.preventDefault(); handleRotate();    break;
+    case ' ':
+      e.preventDefault();
+      if(state.roundActive) hardDrop();
+      break;
+    case 'e': case 'E': playerExit();    break;
+    case 'c': case 'C': playerContinue(); break;
+    case 'Enter': {
+      const ol = document.getElementById('overlay');
+      if(ol.style.display !== 'none') startRound();
+      break;
+    }
+  }
+});
+
+document.getElementById('exit-btn').addEventListener('click', playerExit);
+document.getElementById('continue-btn').addEventListener('click', playerContinue);
+document.getElementById('start-btn').addEventListener('click', () => {
+  startRound();
+});
+
+// Auto-check continue completion after each line clear (monkey-patch via render loop)
+setInterval(() => {
+  if(state.roundActive && state.linesCleared >= TARGET_LINES && !state.anomalyActive) {
+    // If no anomaly, auto-complete (player wins by surviving)
+    if(!state.hasAnomaly) {
+      clearInterval(dropTimer);
+      state.roundActive = false;
+      levelUp();
+    }
+  }
+  if(state.roundActive && state.linesCleared >= TARGET_LINES && state.hasAnomaly) {
+    // Had anomaly but didn't exit → wrong
+    clearInterval(dropTimer);
+    state.roundActive = false;
+    showResult(false, '異変があったのに\n50ライン消してしまった。');
+  }
+}, 200);
+
+// ========================
+// GAMEPAD SUPPORT
+// ========================
+// Standard gamepad button mapping (Xbox / PlayStation layout):
+//   Buttons: 0=A/×  1=B/○  2=X/□  3=Y/△
+//            4=LB   5=RB   6=LT   7=RT
+//            8=Back/Share  9=Start/Options
+//            12=D-Up 13=D-Down 14=D-Left 15=D-Right
+// Axes:     0=LS-X  1=LS-Y  2=RS-X  3=RS-Y
+//
+// Mapping used here:
+//   Move Left  : D-Left  / LS-Left
+//   Move Right : D-Right / LS-Right
+//   Soft Drop  : D-Down  / LS-Down
+//   Rotate     : A(0) / D-Up / LS-Up
+//   Hard Drop  : B(1)
+//   EXIT       : LB(4) or X(2)
+//   CONTINUE   : RB(5) or Y(3)
+//   Start      : Start(9)
+
+const gp = {
+  // DAS / ARR timings (ms)
+  DAS: 160,    // Delayed Auto Shift
+  ARR: 50,     // Auto Repeat Rate
+  SOFT_ARR: 50,
+
+  // Internal state
+  connected: false,
+  index: null,
+
+  // Previous frame button states (for edge detection)
+  prev: {},
+
+  // Auto-repeat timers
+  leftTimer:  null,
+  rightTimer: null,
+  downTimer:  null,
+  leftDAS:    null,
+  rightDAS:   null,
+  downDAS:    null,
+};
+
+// Gamepad connected / disconnected events
+window.addEventListener('gamepadconnected', e => {
+  gp.connected = true;
+  gp.index = e.gamepad.index;
+  gp.prev = {};
+  showGamepadStatus(true, e.gamepad.id);
+  requestAnimationFrame(gamepadLoop);
+});
+window.addEventListener('gamepaddisconnected', e => {
+  if(e.gamepad.index === gp.index) {
+    gp.connected = false;
+    gp.index = null;
+    clearGpTimers();
+    showGamepadStatus(false, '');
+  }
+});
+
+function showGamepadStatus(connected, id) {
+  let el = document.getElementById('gamepad-status');
+  if(!el) {
+    el = document.createElement('div');
+    el.id = 'gamepad-status';
+    el.style.cssText = `
+      position:fixed; bottom:12px; right:16px;
+      font-family:'Share Tech Mono',monospace;
+      font-size:0.6rem; letter-spacing:0.1em;
+      padding:5px 10px; border-radius:2px;
+      z-index:1000; transition: opacity 0.5s;
+    `;
+    document.body.appendChild(el);
+  }
+  if(connected) {
+    el.style.background = 'rgba(0,255,136,0.15)';
+    el.style.border = '1px solid #00ff88';
+    el.style.color = '#00ff88';
+    const shortId = id.length > 30 ? id.slice(0,30)+'…' : id;
+    el.textContent = '🎮 ' + shortId;
+    el.style.opacity = '1';
+  } else {
+    el.style.background = 'rgba(255,34,68,0.15)';
+    el.style.border = '1px solid #ff2244';
+    el.style.color = '#ff2244';
+    el.textContent = '🎮 切断';
+    setTimeout(() => { if(el) el.style.opacity = '0'; }, 3000);
+  }
+}
+
+function clearGpTimers() {
+  clearTimeout(gp.leftDAS);  clearInterval(gp.leftTimer);
+  clearTimeout(gp.rightDAS); clearInterval(gp.rightTimer);
+  clearTimeout(gp.downDAS);  clearInterval(gp.downTimer);
+}
+
+// Axis dead-zone helper
+function axisDir(val, threshold=0.4) {
+  if(val < -threshold) return -1;
+  if(val >  threshold) return  1;
+  return 0;
+}
+
+// Button pressed this frame (rising edge)
+function justPressed(btns, prev, idx) {
+  return btns[idx] && btns[idx].pressed && !(prev[idx]);
+}
+// Button released this frame (falling edge)
+function justReleased(btns, prev, idx) {
+  return !(btns[idx] && btns[idx].pressed) && prev[idx];
+}
+
+let gpRafId = null;
+function gamepadLoop() {
+  if(!gp.connected) return;
+
+  const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+  const gamepad = gamepads[gp.index];
+  if(!gamepad) { gpRafId = requestAnimationFrame(gamepadLoop); return; }
+
+  const btns = gamepad.buttons;
+  const axes = gamepad.axes;
+  const prev = gp.prev;
+
+  // --- Helper: current pressed state as plain object for next frame ---
+  const cur = {};
+  btns.forEach((b, i) => cur[i] = b.pressed);
+
+  // Combine D-pad and left stick for directional input
+  const dLeft  = (btns[14] && btns[14].pressed) || axisDir(axes[0]) === -1;
+  const dRight = (btns[15] && btns[15].pressed) || axisDir(axes[0]) ===  1;
+  const dDown  = (btns[13] && btns[13].pressed) || axisDir(axes[1]) ===  1;
+  const dUp    = (btns[12] && btns[12].pressed) || axisDir(axes[1]) === -1;
+
+  const prevLeft  = prev._dLeft;
+  const prevRight = prev._dRight;
+  const prevDown  = prev._dDown;
+  const prevUp    = prev._dUp;
+
+  // --- LEFT movement with DAS/ARR ---
+  if(dLeft && !prevLeft) {
+    handleMoveLeft();
+    clearTimeout(gp.leftDAS); clearInterval(gp.leftTimer);
+    gp.leftDAS = setTimeout(() => {
+      gp.leftTimer = setInterval(() => { if(dLeft) handleMoveLeft(); }, gp.ARR);
+    }, gp.DAS);
+  } else if(!dLeft && prevLeft) {
+    clearTimeout(gp.leftDAS); clearInterval(gp.leftTimer);
+  }
+
+  // --- RIGHT movement with DAS/ARR ---
+  if(dRight && !prevRight) {
+    handleMoveRight();
+    clearTimeout(gp.rightDAS); clearInterval(gp.rightTimer);
+    gp.rightDAS = setTimeout(() => {
+      gp.rightTimer = setInterval(() => { if(dRight) handleMoveRight(); }, gp.ARR);
+    }, gp.DAS);
+  } else if(!dRight && prevRight) {
+    clearTimeout(gp.rightDAS); clearInterval(gp.rightTimer);
+  }
+
+  // --- SOFT DROP with ARR ---
+  if(dDown && !prevDown) {
+    handleSoftDrop();
+    clearTimeout(gp.downDAS); clearInterval(gp.downTimer);
+    gp.downDAS = setTimeout(() => {
+      gp.downTimer = setInterval(() => { if(dDown) handleSoftDrop(); }, gp.SOFT_ARR);
+    }, gp.DAS);
+  } else if(!dDown && prevDown) {
+    clearTimeout(gp.downDAS); clearInterval(gp.downTimer);
+  }
+
+  // --- ROTATE (A button=0, D-Up, LS-Up) ---
+  if((justPressed(btns, prev, 0) || (dUp && !prevUp))) {
+    handleRotate();
+  }
+
+  // --- HARD DROP (B button=1) ---
+  if(justPressed(btns, prev, 1)) {
+    if(state.roundActive) hardDrop();
+  }
+
+  // --- EXIT (LB=4 or X=2) ---
+  if(justPressed(btns, prev, 4) || justPressed(btns, prev, 2)) {
+    playerExit();
+  }
+
+  // --- CONTINUE (RB=5 or Y=3) ---
+  if(justPressed(btns, prev, 5) || justPressed(btns, prev, 3)) {
+    playerContinue();
+  }
+
+  // --- Start button (9) → start round / confirm overlay ---
+  if(justPressed(btns, prev, 9)) {
+    const ol = document.getElementById('overlay');
+    if(ol.style.display !== 'none') startRound();
+  }
+
+  // Save state for next frame
+  gp.prev = cur;
+  gp.prev._dLeft  = dLeft;
+  gp.prev._dRight = dRight;
+  gp.prev._dDown  = dDown;
+  gp.prev._dUp    = dUp;
+
+  gpRafId = requestAnimationFrame(gamepadLoop);
+}
+
+// Shared action handlers (used by both keyboard and gamepad)
+function handleMoveLeft() {
+  if(!state.currentPiece || !state.roundActive) return;
+  const dir = state.reverseControl ? 1 : -1;
+  if(isValidPos(state.currentPiece, dir, 0, null, state.board)) { state.currentPiece.x += dir; render(); }
+}
+function handleMoveRight() {
+  if(!state.currentPiece || !state.roundActive) return;
+  const dir = state.reverseControl ? -1 : 1;
+  if(isValidPos(state.currentPiece, dir, 0, null, state.board)) { state.currentPiece.x += dir; render(); }
+}
+function handleSoftDrop() {
+  if(!state.currentPiece || !state.roundActive) return;
+  if(isValidPos(state.currentPiece, 0, 1, null, state.board)) { state.currentPiece.y++; render(); }
+}
+function handleRotate() {
+  if(!state.currentPiece || !state.roundActive) return;
+  let rot = rotateMat(state.currentPiece.matrix);
+  if(state.reverseRotate) rot = rotateMat(rotateMat(rotateMat(rot)));
+  for(const dx of [0,-1,1,-2,2]) {
+    if(isValidPos(state.currentPiece, dx, 0, rot, state.board)) {
+      state.currentPiece.matrix = rot;
+      state.currentPiece.x += dx;
+      render();
+      break;
+    }
+  }
+}
+
+// Initial state
+document.getElementById('overlay-title').textContent = 'EXIT No. TETRIS';
+document.getElementById('overlay-msg').textContent =
+  'テトリスをしながら「異変」を探せ。\n\n異変を感じたら EXIT を押せ。\n異変がなければ 50ライン 消せ。\n\nレベル 8 を突破したら脱出成功。\n\n【キーボード】 E: EXIT　C: CONTINUE\n【コントローラー】 LB/X: EXIT　RB/Y: CONTINUE\n　十字キー/左スティック: 移動\n　A: 回転　B: ハードドロップ　Start: 開始';
+document.getElementById('start-btn').textContent = 'START';
+</script>
+</body>
+</html>
